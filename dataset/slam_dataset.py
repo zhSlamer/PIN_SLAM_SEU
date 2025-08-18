@@ -902,6 +902,9 @@ class SLAMDataset(Dataset):
                             np.linalg.inv(self.gt_poses[frame_id + 1])
                             @ self.gt_poses[frame_id]
                         )
+
+                tran_in_frame = np.linalg.inv(tran_in_frame)
+                
                 self.cur_point_cloud_torch = deskewing(
                     self.cur_point_cloud_torch,
                     self.cur_point_ts_torch,

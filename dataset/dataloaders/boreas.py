@@ -46,8 +46,10 @@ class BoreasDataset:
         return frame_data
 
     def read_point_cloud(self, scan_file: str):
-        points = np.fromfile(scan_file, dtype=np.float32).reshape((-1, 6))[:, :3]
-        return points.astype(np.float64), self.get_timestamps(points)
+        points_raw = np.fromfile(scan_file, dtype=np.float32).reshape((-1, 6))
+        points = points_raw[:, :3]
+        timestamps = points_raw[:, -1]
+        return points.astype(np.float64), timestamps.astype(np.float64)
 
     def load_poses(self, poses_file):
         data = np.loadtxt(poses_file, delimiter=",", skiprows=1)
@@ -62,13 +64,7 @@ class BoreasDataset:
             poses[i, :, :] = np.linalg.inv(first_pose) @ current_pose
         return poses
 
-    @staticmethod
-    def get_timestamps(points):
-        x = points[:, 0]
-        y = points[:, 1]
-        yaw = -np.arctan2(y, x)
-        timestamps = 0.5 * (yaw / np.pi + 1.0)
-        return timestamps
+        # NOTE: boreas pose is not very smooth, not the real "GT"
 
     @staticmethod
     def get_transformation_matrix(x, y, z, yaw, pitch, roll):
