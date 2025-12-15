@@ -101,7 +101,10 @@ class DataSampler:
         # Part 2. free space (in front of surface) uniform sampling
         # if you want to reconstruct the thin objects (like poles, tree branches) well, you need more freespace samples to have
         # a space carving effect
-
+            # 自由空间表面前部采样 目的是 [Nf, 1] sdf采样点 比例采样点
+            # 在表面前方的自由空间内，从距离传感器最小比例（free_front_min_ratio）到最大比例（free_max_ratio）之间均匀采样
+            # 最大比例由1.0减去一个偏移量（sigma_ratio * surface_sample_range / 距离）计算得到，确保不会采样到表面后方
+            # 计算sdf和距离比例
         sigma_ratio = 2.0
         repeated_dist = distances.repeat(freespace_front_sample_n, 1)
         free_max_ratio = 1.0 - sigma_ratio * surface_sample_range / repeated_dist
@@ -122,6 +125,7 @@ class DataSampler:
             )
 
         # Part 3. free space (behind surface) uniform sampling
+            # 自由空间表面后部采样 目的是 [Nf, 1] sdf采样点 比例采样点
         repeated_dist = distances.repeat(freespace_behind_sample_n, 1)
         free_max_ratio = free_sample_end_dist / repeated_dist + 1.0
         free_behind_min_ratio = 1.0 + sigma_ratio * surface_sample_range / repeated_dist
@@ -146,6 +150,7 @@ class DataSampler:
         # T1 = get_time()
 
         # all together
+        # 合并所有采样点 sdf监督距离，距离比例
         all_sample_displacement = torch.cat(
             (
                 measured_sample_displacement,
@@ -164,7 +169,7 @@ class DataSampler:
             ),
             0,
         )
-
+        # 一共Na个采样点，根据比例计算每个采样点的位置 形成 x,y 对组 采样点和监督值
         repeated_points = points_torch.repeat(all_sample_n, 1)
         repeated_dist = distances.repeat(all_sample_n, 1)
         all_sample_points = repeated_points * all_sample_dist_ratio
@@ -173,6 +178,13 @@ class DataSampler:
         depths_tensor = repeated_dist * all_sample_dist_ratio
 
         # get the weight vector as the inverse of sigma
+        """
+        采样权重
+            如果开启距离权重，则表面附近的采样点（包括实际测量点）根据其距离调整权重，远处点权重较低。
+            如果开启后向衰减权重，则表面后方的采样点根据位移进行衰减，位移越大（离表面越远）权重越低。
+        标记样本类型
+            将自由空间样本的权重乘以-1，以区分表面样本（正权重）和自由空间样本（负权重）
+        """
         weight_tensor = torch.ones_like(depths_tensor)
 
         surface_sample_count = point_num * (surface_sample_n + 1)
@@ -240,7 +252,10 @@ class DataSampler:
                 ),
                 0,
             )
-
+        """
+        重排数据顺序
+            将数据从“所有射线的表面样本+所有射线的自由样本”的顺序转换为按射线顺序（每条射线的表面样本和自由样本连续排列）
+        """
         # T2 = get_time()
         # Convert from the all ray surface + all ray free order to the ray-wise (surface + free) order
         all_sample_points = (
