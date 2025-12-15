@@ -213,7 +213,8 @@ class Mapper:
 
         T1 = get_time()
 
-        # sampling data for training
+        # sampling data for training - 采样数据集用于模型训练 采样点和监督值
+        # 从当前帧点云 调用采样函数sample 获得采样点和对应的sdf监督值
         (
             coord,
             sdf_label,
@@ -224,6 +225,7 @@ class Mapper:
         ) = self.sampler.sample(
             frame_point_torch, frame_normal_torch, frame_label_torch, frame_color_torch
         )
+
         # coord is in sensor local frame
 
         time_repeat = torch.tensor(

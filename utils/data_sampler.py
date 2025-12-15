@@ -10,11 +10,15 @@ from utils.tools import get_time
 
 
 class DataSampler:
+    # 类型注解 变量：类型，用于 变量类型，函数传参，类传参
+    # 用于：更好的代码提示，静态类型检查
     def __init__(self, config: Config):
 
         self.config = config
         self.dev = config.device
 
+    # 接收当前帧点云、法向量、语义标签、颜色标签
+    # 当前帧点云是局部坐标系，未转换至全局坐标系 - 数值小，便于计算
     def sample(self, points_torch, normal_torch, sem_label_torch, color_torch):
         """
         Sample training sample points for current scan, get the labels for online training
@@ -23,7 +27,12 @@ class DataSampler:
         """
 
         # T0 = get_time()
-
+        """
+        准备工作 获取配置中的参数
+            表面采样范围、表面采样点数量
+            自由空间前和后采样点数量
+            总采样点数量 = 表面采样点 + 自由空间前采样点 + 自由空间后采样点 + 1(实际端点)
+        """
         dev = self.dev
         surface_sample_range = self.config.surface_sample_range_m
         surface_sample_n = self.config.surface_sample_n
@@ -35,6 +44,18 @@ class DataSampler:
         free_front_min_ratio = self.config.free_sample_begin_ratio
         free_sample_end_dist = self.config.free_sample_end_dist_m
 
+        """
+        pytorch points dim - [points_num, 3/4]
+            shape方法用于获取维度 shape[0] shape[1]
+        torch.linalg.norm() 距离是L2范数
+            计算指定维度上的范数, dim=1, 对每一行计算2范数
+                #    dim=0: 沿着第一个维度计算（列方向）
+                #    dim=1: 沿着第二个维度计算（行方向）
+                #    我们需要对每个点的坐标向量计算范数，所以 dim=1
+            keepdim 保持输出维度 - [points_num, 1], 若False - [points_num]
+                #    如果为 True: 输出形状为 (N, 1)
+                #    如果为 False: 输出形状为 (N,)
+        """
         # get sample points
         point_num = points_torch.shape[0]
         distances = torch.linalg.norm(
@@ -42,6 +63,8 @@ class DataSampler:
         )  # ray distances (scaled)
 
         # Part 0. the exact measured point
+            # 端点 zeros_like 全0张量; ones_like 全1张量 --- dim [N, 1]
+            # 采样点 监督值为0； 距离比例为1 r = d/d
         measured_sample_displacement = torch.zeros_like(distances)
         measured_sample_dist_ratio = torch.ones_like(distances)
 
