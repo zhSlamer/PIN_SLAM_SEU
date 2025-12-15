@@ -70,12 +70,23 @@ class DataSampler:
 
         # Part 1. close-to-surface uniform sampling
         # uniform sample in the close-to-surface range (+- range)
+            # 近表面点均匀采样
+            # 在近表面点附近前后一定距离d范围内进行均匀采样，生成表面采样点的sdf距离
+            # 计算每个采样点的距离比例：1.0 + sdf/距离，其中 1.0表示在表面上
+        # 近表面采样点数量 Ns = N*num_surface
+        # SDF距离 [Ns, 1]  -sur~0~sur
+            # 这些随机数表示采样点相对于原始表面的位移SDF，正位移表示在表面外，负位移表示在表面内，乘以 surface_sample_range控制位移的范围
+            # randn正太分布 ： 乘以surface_sample_range，均值为0，标准差为surface_sample_range的正态分布
+            # surface_sample_displacement ~ N(0, surface_sample_range²)
+        # 采样形式：一次性生成Ns个随机数，利用最大范围限制距离，随机数，无需考虑顺序
         surface_sample_displacement = (
             torch.randn(point_num * surface_sample_n, 1, device=dev)
             * surface_sample_range
         )
-
+            # 将原始张量dis，每个点重复num_sur次，形成sur_dis[Ns, 1]
+            # 张量重复是按照顺序重复张量，即每一帧N为一组，重复ns组
         repeated_dist = distances.repeat(surface_sample_n, 1)
+            # 计算SDF比例 1+sdf/距离
         surface_sample_dist_ratio = (
             surface_sample_displacement / repeated_dist + 1.0
         )  # 1.0 means on the surface
